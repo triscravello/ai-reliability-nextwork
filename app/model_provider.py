@@ -1,6 +1,7 @@
 import os
 from typing import Protocol
 
+import httpx
 from dotenv import load_dotenv
 from google import genai
 from google.genai import errors, types
@@ -10,6 +11,9 @@ from app.models import Issue, ModelSuggestion
 
 # Reuse the model identifier approved in Part 1.
 MODEL_ID = "gemini-3.8-flash"
+
+# Fail fast so a slow provider degrades to the baseline instead of hanging the caller.
+PROVIDER_TIMEOUT_MS = 20_000
 
 PROMPT_TEMPLATE = """You are a support triage assistant.
 Suggest a priority (P0 most urgent to P3 least urgent), a routing team, and a one-sentence summary.
@@ -41,7 +45,7 @@ class GeminiModelProvider:
             load_dotenv()
             if not os.environ.get("GEMINI_API_KEY"):
                 raise ModelProviderError("GEMINI_API_KEY is not configured.")
-            self._client = genai.Client()
+            self._client = genai.Client(http_options=types.HttpOptions(timeout=PROVIDER_TIMEOUT_MS))
         return self._client
 
     def suggest(self, issue: Issue) -> ModelSuggestion:
@@ -62,5 +66,5 @@ class GeminiModelProvider:
             )
             # Validate before anything model-generated leaves this boundary.
             return ModelSuggestion.model_validate_json(response.text or "")
-        except (errors.APIError, ValidationError) as error:
+        except (errors.APIError, ValidationError, httpx.TimeoutException) as error:
             raise ModelProviderError("Gemini did not return a valid suggestion.") from error
