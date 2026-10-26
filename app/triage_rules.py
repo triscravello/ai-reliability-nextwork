@@ -52,8 +52,14 @@ class _Rule(NamedTuple):
 # Ordered from most to least urgent. The first matching rule wins.
 _RULES: tuple[_Rule, ...] = (
     # TODO 2: Apply critical security and global-impact rules before broad category rules.
-
-    # TODO 3: Route widespread customer impact before routine fallback behavior.
+    # Handle the most urgent and specific policies first
+    _Rule("Critical security exposure", (CRITICAL_SECURITY_PHRASES,), "P0", "security"),
+    _Rule("Global payment outage", (PAYMENT_PHRASES, GLOBAL_IMPACT_PHRASES, OUTAGE_PHRASES), "P0", "payments"),
+    _Rule("Global service outage", (GLOBAL_IMPACT_PHRASES, OUTAGE_PHRASES), "P0", "reliability"),
+    _Rule("Security investigation", (SECURITY_INVESTIGATION_PHRASES,), "P1", "security"),
+    # TODO 3: Route widespread customer impact before routine fallback behavior. 
+    _Rule("Widespread customer impact",
+    (WIDESPREAD_IMPACT_PHRASES,), "P1", "reliability"),
 
     _Rule("General payment issue", (PAYMENT_PHRASES,), "P2", "payments"),
     _Rule("Integration issue", (INTEGRATION_PHRASES,), "P2", "platform"),
@@ -103,6 +109,8 @@ def _override_decision(issue: Issue) -> TriageDecision:
 
 def classify_issue(issue: Issue) -> TriageDecision:
     # TODO 1: Preserve an explicit human override before automated matching.
+    if issue.human_override is not None:
+        return _override_decision(issue)
 
     text = _searchable_text(issue)
     for rule in _RULES:

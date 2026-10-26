@@ -18,16 +18,27 @@ class TriageOrchestrator:
         baseline = classify_issue(issue)
 
         # TODO 1: Return a human override before calling the provider.
+        if baseline.decision_source == "human_override":
+            return baseline
 
         # TODO 2: Catch provider failures and return a baseline fallback.
-        suggestion = self._provider.suggest(issue)
+        # Fall back to the trusted baseline when the provider is unavailable
+        try:
+            suggestion = self._provider.suggest(issue)
+        except ModelProviderError:
+            return baseline.model_copy(update={
+                "decision_source": "baseline_fallback",
+                "summary": f"{baseline.summary} {PROVIDER_UNAVAILABLE_NOTE}",
+            })
 
         return self._apply_suggestion(baseline, suggestion)
 
     def _apply_suggestion(self, baseline: TriageDecision, suggestion: ModelSuggestion) -> TriageDecision:
         # TODO 3: Accept escalations while rejecting priority downgrades.
-        priority = suggestion.priority
-        routing_team = suggestion.routing_team
+        # Accept only suggestions that increase urgency
+        is_escalation = _PRIORITY_RANK[suggestion.priority] < _PRIORITY_RANK[baseline.priority]
+        priority = suggestion.priority if is_escalation else baseline.priority
+        routing_team = suggestion.routing_team if is_escalation else baseline.routing_team
 
         return baseline.model_copy(update={
             "priority": priority,
