@@ -1,5 +1,15 @@
-.env
+
+# Python virtual environments
 .venv/
 venv/
 __pycache__/
-*.py[cod]
+*.pyc
+
+# Local environment variables
+.env
+.env.local
+
+# Streamlit local configurations
+.streamlit/config.toml
+.streamlit/secrets.toml
+
